@@ -508,3 +508,20 @@ test("S1-REG-02 right-click approves/disapproves and the decision appears in Reg
   const rejectedRow = content.getByRole("row").filter({ hasText: "QA Reject User" });
   await expect(rejectedRow).toContainText("Disapproved");
 });
+
+test("S1-STAFF-NAV-01 returning to the Staff dashboard from a module renders it fully", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await login(page, "qa-user");
+  await expect(page.getByRole("heading", { name: "Welcome back, QA User." })).toBeVisible();
+  await page.getByRole("link", { name: "Customers", exact: true }).click();
+  await expect(page.getByRole("row", { name: "Open QA Customer", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Dashboard", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Welcome back, QA User." })).toBeVisible();
+  await expect(page.locator("#staff-content")).toBeVisible();
+  await expect(page.locator("#toast")).not.toContainText("Cannot set properties");
+  await page.getByRole("button", { name: "Notifications", exact: true }).click();
+  await expect(page.locator("#staff-notifications")).toBeVisible();
+  await expect(page.locator("#staff-notification-list")).not.toBeEmpty();
+  expect(errors).toEqual([]);
+});

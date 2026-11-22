@@ -9,6 +9,11 @@
     if(navigating){pending={target,pop};return;}
     if(url.href===location.href&&!pop)return;
     if(document.querySelector('dialog[open]'))return;
+    // The Staff dashboard and Staff module pages build different sidebars and page parts,
+    // so crossing between them is a full page load; module-to-module stays in place.
+    const targetParts=url.pathname.split('/').filter(Boolean);
+    const targetModule=targetParts[1]==='staff'?targetParts[3]:targetParts[2];
+    if(document.body.dataset.workspace==='staff'&&(document.body.dataset.module==='dashboard')!==(targetModule==='dashboard')){location.assign(url.href);return;}
     navigating=true;
     const frame=document.querySelector('.dashboard-shell');
     try{
