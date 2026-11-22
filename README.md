@@ -98,12 +98,13 @@ HOST=127.0.0.1
 PORT=5000
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SECRET_KEY=your-server-only-key
+DATABASE_URL=postgresql://postgres.your-project-ref:your-database-password@your-session-pooler-host:5432/postgres
 SESSION_SECRET=replace-with-a-random-secret-of-at-least-32-characters
 APP_URL=http://localhost:5000
 FRONTEND_ORIGINS=http://localhost:5000,http://127.0.0.1:5000
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` is also accepted as a server-key alias. Use a server-only key for the backend, not a publishable key. `SESSION_SECRET` protects sessions; it is not an account password. Keep actual values private.
+`SUPABASE_SERVICE_ROLE_KEY` is also accepted as a server-key alias. Use a server-only key for the backend, not a publishable key. `DATABASE_URL` uses Supabase's Session pooler and is intended for SQL migration and verification tools; never commit its real password. `SESSION_SECRET` protects sessions; it is not an account password. Keep actual values private.
 
 Google sign-in additionally needs `SUPABASE_PUBLISHABLE_KEY`, the Google provider configured in Supabase, an allowed application callback, and `GOOGLE_OAUTH_ENABLED=true`.
 
