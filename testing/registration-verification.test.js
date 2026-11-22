@@ -25,7 +25,7 @@ test('Registration email proof gates approval and consumes codes once',async t=>
  const verified=await post('verify-registration-code',{code:newCode});assert.equal(verified.status,201);assert.equal(verified.body.data.role,'user');assert.equal(verified.body.data.status,'pending');
  assert.equal((await post('verify-registration-code',{code:newCode})).status,400);
  const consumed=(await db.pg.query('SELECT * FROM registration_challenge')).rows[0];assert.equal(consumed.code_hash,null);assert.equal(consumed.password_hash,null);
- fail=true;assert.equal((await post('register',{...details,username:'second',email:'second@example.test'})).status,503);
+ fail=true;const undelivered=await post('register',{...details,username:'second',email:'second@example.test'});assert.equal(undelivered.status,503);assert.equal(undelivered.body.message,'We could not send the verification code. Please try again later.');
  assert.equal((await db.pg.query("SELECT count(*)::int n FROM users")).rows[0].n,1);
  fail=false;assert.equal((await post('register',{...details,username:'third',email:'third@example.test'})).status,202);
  await db.pg.exec("UPDATE registration_challenge SET expires_at=now()-interval '1 second' WHERE email='third@example.test'");

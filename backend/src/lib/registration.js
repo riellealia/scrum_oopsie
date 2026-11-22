@@ -12,10 +12,13 @@ async function issue(req,res,row) {
   const mail=req.app.locals.registrationMailer||createMailer();
   const content=require('./email-template').codeEmail({name:row.name,code,purpose:'registration'});
   await mail({to:row.email,subject:'Verify your HOPE account',...content});
- } catch {
+ } catch (error) {
   check(await req.app.locals.db.from('registration_challenge').update({used_at:new Date().toISOString(),password_hash:null,code_hash:null}).eq('id',id));
   delete req.session.registrationId;
-  throw new HttpError(503,'We could not send the verification code. Please try again later.');
+  // Show the reason (e.g. email not configured) instead of a generic server error.
+  const failure=new HttpError(503,error?.expose?error.message:'We could not send the verification code. Please try again later.');
+  failure.expose=true;
+  throw failure;
  }
  res.status(202).json({status:'verification_required',message:'Enter the six-digit code sent to your email. Verify it before submitting your account for approval.',retryAfter:60});
 }
