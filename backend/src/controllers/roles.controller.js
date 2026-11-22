@@ -1,6 +1,6 @@
 const {check,HttpError,text,object}=require('../lib/http');
 const {normalizeRights}=require('../lib/permissions');
-const columns='id,name,description,rights,status,created_at,updated_at';
+const columns='id,name,description,rights,status,built_in,created_at,updated_at';
 function expected(req){if(!req.get('if-match'))return null;let value;try{value=JSON.parse(req.get('if-match'));}catch{throw new HttpError(400,'Invalid role version.');}if(typeof value!=='string'||!Number.isFinite(Date.parse(value)))throw new HttpError(400,'Invalid role version.');return value;}
 async function list(req,res){
  let q=req.app.locals.db.from('permission_role').select(columns,{count:'exact'});
@@ -10,6 +10,8 @@ async function list(req,res){
  const result=await q.range(offset,offset+limit-1),rows=check(result);
  const ids=rows.map(r=>r.id);const members=ids.length?check(await req.app.locals.db.from('users').select('id,permission_role_id').in('permission_role_id',ids).eq('is_deleted',false).eq('status','approved')):[];
  for(const row of rows){row.members=members.filter(u=>u.permission_role_id===row.id).length;row.permission_count=Object.values(row.rights).filter(v=>v===true).length;}
+ // Built-in Admin and User roles always lead the list, ahead of custom roles.
+ rows.sort((a,b)=>(a.built_in?{admin:0,user:1}[a.built_in]:2)-(b.built_in?{admin:0,user:1}[b.built_in]:2));
  res.json({status:'success',data:rows,count:result.count,limit,offset});
 }
 async function get(req,res){const row=check(await req.app.locals.db.from('permission_role').select(columns).eq('id',req.params.id).maybeSingle());if(!row)throw new HttpError(404,'Role not found.');res.json({status:'success',data:row});}

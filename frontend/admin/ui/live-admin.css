@@ -463,3 +463,8 @@ select:focus-visible {
 .registration-state--disapproved,.registration-state--blocked {color:#be4050;}
 .registration-state--pending {color:var(--muted);}
 @media(prefers-reduced-motion:reduce){.registration-decision{transition:none;}}
+/* Module the role cannot view: keep the page shell, show a clear notice. */
+.live-no-permission{display:grid;max-width:520px;margin:48px auto;padding:36px 28px;justify-items:center;gap:8px;text-align:center;border:1px dashed rgba(7,62,87,.2);background:rgba(255,255,255,.65);box-shadow:none}
+.live-no-permission svg{width:30px;fill:var(--muted)}
+.live-no-permission h2{margin:4px 0 0;font-size:1.05rem}
+.live-no-permission p{margin:0;color:var(--muted);font-size:.8rem;line-height:1.5}

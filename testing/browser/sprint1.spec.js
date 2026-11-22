@@ -186,9 +186,8 @@ test("S1-RIGHTS-01 permission checklist gates children and saves an audited chan
   const d = page.locator("#live-dialog");
   await expect(d.locator("#live-permission-role option").filter({ hasNotText: "Customer Staff" })).toHaveText([
     "Custom permissions",
-    "Admin",
-    "Staff",
     "User",
+    "Staff",
   ]);
   await expect(d.locator("[data-gate]")).toHaveCount(5);
   await expect(d.locator("[data-right]")).toHaveCount(36);
@@ -283,12 +282,17 @@ test("S1-STAFF-01 assigned-role Staff reaches a separate permission-filtered wor
   await expect(page.locator("#staff-notifications")).toBeVisible();
   await expect(page.getByRole("tab", { name: "Overview", exact: true })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Operations", exact: true })).toBeVisible();
-  await expect(page.getByRole("tab", { name: "People", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("tab", { name: "Finance", exact: true })).toHaveCount(0);
+  // Sections outside the role stay visible but say so instead of showing data.
+  await page.getByRole("button", { name: "Notifications", exact: true }).click();
+  await page.getByRole("tab", { name: "People", exact: true }).click();
+  await expect(page.locator('.dashboard-view[data-view="people"]')).toContainText("You don't have permission to view this.");
+  await expect(page.locator("#people-total")).toHaveCount(0);
+  await page.getByRole("tab", { name: "Overview", exact: true }).click();
   await expect(page.locator("#staff-actions")).toHaveClass(/quick-panel/);
   await expect(page.locator("#staff-actions")).toContainText("No write actions are assigned");
   await expect(page.getByRole("columnheader", { name: "Source date", exact: true })).toBeVisible();
-  await expect(page.locator("#staff-sales-card")).toHaveCount(0);
+  await expect(page.locator("#staff-sales-card")).toContainText("You don't have permission to view this.");
+  await expect(page.locator("#metric-sales")).toHaveCount(0);
   expect((await page.request.get("/api/admin/users")).status()).toBe(403);
   expect((await page.request.get("/api/admin/settings")).status()).toBe(403);
   expect((await page.request.get("/api/products")).status()).toBe(403);
@@ -382,14 +386,17 @@ test("S1-USER-02 base User reaches separate account-only pages", async ({
 }) => {
   await login(page, "qa-basic");
   await expect(page).toHaveURL(/user\/dashboard/);
-  for(const tab of ["Account home","My Profile","My Access","Security"])await expect(page.getByRole("link",{name:tab,exact:true}).last()).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Welcome back, QA Basic User.", exact: true })).toBeVisible();
+  const sidebar=page.getByRole("complementary",{name:"User account navigation"});
+  for(const tab of ["Dashboard","My Profile","My Access","Security"])await expect(sidebar.getByRole("link",{name:tab,exact:true})).toBeVisible();
+  await expect(page.getByRole("navigation",{name:"Account sections"})).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Welcome back, qa-basic.", exact: true })).toBeVisible();
+  await expect(page.locator(".profile-copy strong")).toHaveText("qa-basic");
+  await expect(page.locator(".profile-button .avatar")).toHaveText("QA");
   await expect(page.getByText("Net sales",{exact:true})).toBeVisible();
   await expect(page.getByText("Outstanding",{exact:true})).toBeVisible();
   await expect(page.getByText("Active employees",{exact:true})).toBeVisible();
   await expect(page.getByText("Products",{exact:true})).toBeVisible();
   await expect(page.locator('.user-metrics strong')).toHaveText(["$0","$0","0","0"]);
-  await expect(page.getByRole("navigation", { name: "Account sections" }).getByRole("link", { name: "My Access", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Customers" })).toHaveCount(0);
   expect((await page.request.get("/api/customers")).status()).toBe(403);
 });
@@ -430,10 +437,9 @@ test("S1-STAFF-04 denied module URL leaves the Staff workspace", async ({
 }) => {
   await login(page, "qa-user");
   await page.goto("/UI-UX/staff/modules/products/index.html");
-  await expect(page.locator("#app")).toContainText(
-    /not permitted|access denied|no access|not authorized|no permission|forbidden|undefined/i,
-    { timeout: 3000 },
-  );
+  await expect(page.getByRole("note")).toContainText("You don't have permission to view this", { timeout: 3000 });
+  await expect(page.getByRole("link", { name: "Customers", exact: true })).toBeVisible();
+  await expect(page.locator(".records-table")).toHaveCount(0);
 });
 
 test("S1-REG-01 inline review icons approve/disapprove without opening the row and support filters", async ({

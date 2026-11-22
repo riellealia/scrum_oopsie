@@ -57,20 +57,10 @@
 @media(min-width:761px){.records-panel{height:60%;min-height:60%;flex:1 0 60%}}
 @media(max-width:760px){.records-panel{height:auto;min-height:60dvh;flex:none}}
 
-/* Keep the complete role-management workflow visible without changing other module tables. */
-body[data-module="user-management"][data-view="roles"] .records-table{min-width:880px;table-layout:fixed}
-body[data-module="user-management"][data-view="roles"] .records-table th,
-body[data-module="user-management"][data-view="roles"] .records-table td{padding-right:9px;padding-left:9px}
-body[data-module="user-management"][data-view="roles"] .records-table th:nth-child(1){width:46px}
-body[data-module="user-management"][data-view="roles"] .records-table th:nth-child(2){width:135px}
-body[data-module="user-management"][data-view="roles"] .records-table th:nth-child(4){width:125px}
-body[data-module="user-management"][data-view="roles"] .records-table th:nth-child(5){width:105px}
-body[data-module="user-management"][data-view="roles"] .records-table th:nth-child(6){width:76px}
-body[data-module="user-management"][data-view="roles"] .records-table th:nth-child(7){width:150px}
-body[data-module="user-management"][data-view="roles"] .records-table td:nth-child(3){white-space:normal;line-height:1.35}
-body[data-module="user-management"][data-view="roles"] .records-table td:last-child{white-space:nowrap}
-
-/* Place permission group headings fully inside their cards instead of across the fieldset edge. */
-.role-dialog .permission-groups legend{display:flex;float:left;width:100%;margin:0 0 10px;padding:0;align-items:center;justify-content:space-between;gap:8px}
-.role-dialog .permission-groups legend label{display:flex;align-items:center;gap:6px}
-.role-dialog .permission-groups fieldset>div{clear:both;margin-top:0}
+/* Roles table: Name | Description | Members | Permissions | Status. Descriptions wrap instead of overlapping. */
+body[data-module="user-management"][data-view="roles"] .records-table{min-width:760px;table-layout:fixed}
+body[data-module="user-management"][data-view="roles"] .records-table th:nth-child(1){width:170px}
+body[data-module="user-management"][data-view="roles"] .records-table th:nth-child(3){width:100px}
+body[data-module="user-management"][data-view="roles"] .records-table th:nth-child(4){width:120px}
+body[data-module="user-management"][data-view="roles"] .records-table th:nth-child(5){width:90px}
+body[data-module="user-management"][data-view="roles"] .records-table td:nth-child(2){white-space:normal;line-height:1.4;overflow-wrap:anywhere}

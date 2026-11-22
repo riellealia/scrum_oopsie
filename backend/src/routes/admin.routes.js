@@ -61,10 +61,9 @@ router.get(
       .eq("is_deleted", false);
     if (req.user.role === "admin") q = q.eq("role", "user");
     const people = check(await q);
-    const roles =
-      req.user.role === "superadmin"
-        ? ["superadmin", "admin", "user"]
-        : ["user"];
+    // Admin and User are editable built-in rows in permission_role; only the
+    // fixed Superadmin authority is listed here.
+    const roles = req.user.role === "superadmin" ? ["superadmin"] : [];
     res.json({
       status: "success",
       data: roles.map((role) => ({
@@ -76,7 +75,7 @@ router.get(
             : role === "admin"
               ? "Admin"
               : "User",
-        description: "Built-in system role",
+        description: "Built-in role with fixed full access. Its permissions cannot be changed.",
         status: "active",
         members: people.filter(
           (p) => p.role === role && p.status === "approved",

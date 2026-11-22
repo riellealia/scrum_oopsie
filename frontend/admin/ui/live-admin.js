@@ -152,6 +152,12 @@
     const priceSave=document.querySelector('#live-price-save');if(priceSave&&(!can('products.priceAdd')||!can('products.priceEdit'))){priceSave.disabled=true;document.querySelector('.live-dialog-notice').textContent='Your price permissions changed. Reopen this product before continuing.';}
     return true;
   }
+  // The role has no view permission for this module: keep navigation, show a notice, load nothing.
+  function showNoPermission(){
+    for(const id of ['#live-tabs','#live-toolbar','#live-filters','#live-add'])document.querySelector(id)?.setAttribute('hidden','');
+    document.querySelector('#live-status').textContent='';
+    document.querySelector('#live-content').innerHTML='<article class="panel live-no-permission" role="note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 8h-1V6a4 4 0 0 0-8 0v2H7a2 2 0 0 0-2 2v10h14V10a2 2 0 0 0-2-2Zm-7-2a2 2 0 0 1 4 0v2h-4V6Zm3 9.7V18h-2v-2.3a2 2 0 1 1 2 0Z"/></svg><h2>You don&#39;t have permission to view this</h2><p>Your assigned role does not include access to this module. Contact an administrator if you need it.</p></article>';
+  }
   function renderTabs(){
     const views=(schema.groups[module]||[]).filter(key=>{const r=schema.resources[key];return !r||can(`${r.module}.${r.read||'view'}`);});
     document.querySelector('#live-tabs').innerHTML=views.map(key=>`<button type="button" role="tab" data-view="${key}" aria-selected="${key===view}" class="${key===view?'is-active':''}">${h(label(key))}</button>`).join('');
@@ -406,6 +412,7 @@
   }
 
   function paintRows() {
+    document.body.dataset.view = view;
     if (!cfg() && !["users","roles"].includes(view)) return;
     const filtered = rows;
     const fields =
@@ -837,13 +844,13 @@
     const isUser = view === "users";
     const resource = view;
     const editing = !!row;
-    const permissionProfiles = isUser && editing && row.role === "user"
+    const permissionProfiles = isUser && editing && ["admin","user"].includes(row.role) && (row.role === "user" || user.role === "superadmin")
       ? (await request("/api/admin/roles?status=all&limit=200")).data
       : [];
     const permissionRoleField = permissionProfiles.length || row?.permission_role_id
-      ? `<label class="field"><span>Permission role</span><select name="permission_role_id"><option value="">No permission role</option>${permissionProfiles
-          .sort((a,b)=>({Admin:0,Staff:1,User:2}[a.name]??10)-({Admin:0,Staff:1,User:2}[b.name]??10)||a.name.localeCompare(b.name))
-          .filter(profile=>profile.status==="active"||profile.id===row.permission_role_id)
+      ? `<label class="field"><span>Permission role</span><select name="permission_role_id"><option value="">Custom permissions</option>${permissionProfiles
+          .sort(roleOrder)
+          .filter(profile=>roleFitsAccount(profile,row)&&(profile.status==="active"||profile.id===row.permission_role_id))
           .map(profile=>`<option value="${h(profile.id)}" ${profile.id===row.permission_role_id?"selected":""} ${profile.status==="inactive"?"disabled":""}>${h(profile.name)}${profile.status==="inactive"?" (inactive)":""}</option>`).join("")}</select></label>`
       : "";
     const c = cfg();
@@ -942,7 +949,9 @@
             throw new Error("Select a product for every sale item.");
         }
         const permissionRole=d.querySelector('[name="permission_role_id"]');
-        const permissionRoleChanged=isUser&&editing&&permissionRole&&!permissionRole.disabled&&(permissionRole.value||null)!==(row.permission_role_id||null);
+        // A change of account type moves the account to its new built-in role automatically.
+        const accountTypeChanged=isUser&&editing&&payload.role!==undefined&&payload.role!==row.role;
+        const permissionRoleChanged=isUser&&editing&&!accountTypeChanged&&permissionRole&&!permissionRole.disabled&&(permissionRole.value||null)!==(row.permission_role_id||null);
         delete payload.permission_role_id;
         if (!Object.keys(payload).length&&!permissionRoleChanged) {
           d.close();
@@ -1048,25 +1057,30 @@
     const write=rights=>{d.querySelectorAll('[data-gate]').forEach(b=>b.checked=rights[b.dataset.gate+'.view']===true);d.querySelectorAll('[data-right]').forEach(b=>b.checked=rights[b.dataset.right]===true);refresh();};
     refresh();return {read,write,lock:value=>{locked=value;refresh();}};
   }
+  // Built-in roles belong to their account type; custom roles apply to User accounts.
+  const roleFitsAccount=(profile,account)=>(profile.built_in||'user')===account.role;
+  const roleOrder=(a,b)=>(a.built_in?{admin:0,user:1}[a.built_in]:2)-(b.built_in?{admin:0,user:1}[b.built_in]:2)||a.name.localeCompare(b.name);
   async function openRoleProfile(row=null){
     if(!admin())return;
     try{
       const [catalogueResponse,latest]=await Promise.all([request('/api/admin/rights-catalogue'),row?request('/api/admin/roles/'+row.id):Promise.resolve({data:null})]);row=latest.data;
-      const statusField=row?`<label class="field"><span>Status</span><select name="status"><option value="active" ${row.status!=='inactive'?'selected':''}>Active</option><option value="inactive" ${row.status==='inactive'?'selected':''}>Inactive</option></select></label>`:'';
-      const body=`<div class="dialog-fields"><label class="field"><span>Role name</span><input name="name" maxlength="80" value="${h(row?.name||'')}" required></label>${statusField}<label class="field field--full"><span>Description</span><textarea name="description" rows="2" maxlength="500">${h(row?.description||'')}</textarea></label></div><p class="live-role-note">${row?'Inactive roles cannot be assigned until they are made active again.':'New roles are created Active.'} Named roles apply operational permissions to Users. The Admin, Staff and User presets can be edited here; system Admin and Superadmin authority is assigned separately.</p>`+permissionsMarkup(catalogueResponse.data,row?.rights||{});
+      const builtIn=!!row?.built_in;
+      const statusField=row&&!builtIn?`<label class="field"><span>Status</span><select name="status"><option value="active" ${row.status!=='inactive'?'selected':''}>Active</option><option value="inactive" ${row.status==='inactive'?'selected':''}>Inactive</option></select></label>`:'';
+      const body=`<div class="dialog-fields"><label class="field"><span>Role name</span><input name="name" maxlength="80" value="${h(row?.name||'')}" required ${builtIn?'readonly aria-readonly="true"':''}></label>${statusField}<label class="field field--full"><span>Description</span><textarea name="description" rows="2" maxlength="500">${h(row?.description||'')}</textarea></label></div><p class="live-role-note">${builtIn?`Built-in role. Its permissions apply to every ${h(row.name)} account that follows it; it cannot be renamed or made inactive.`:(row?'Inactive roles cannot be assigned until they are made active again.':'New roles are created Active.')+' Custom roles apply to User accounts.'}</p>`+permissionsMarkup(catalogueResponse.data,row?.rights||{});
       const d=showDialog(row?'Edit role':'Add role',body,'<button type="submit" class="module-primary" id="role-save">Save role</button>');
       const editor=bindPermissions(d);
-      d.querySelector('form').onsubmit=async event=>{event.preventDefault();const button=d.querySelector('#role-save');button.disabled=true;try{await send('/api/admin/roles'+(row?'/'+row.id:''),row?'PUT':'POST',{name:d.querySelector('[name="name"]').value,description:d.querySelector('[name="description"]').value,status:row?d.querySelector('[name="status"]').value:'active',rights:editor.read()},row);d.close();await load(true);}catch(error){d.querySelector('.live-dialog-notice').textContent=error.message;}finally{if(button.isConnected)button.disabled=false;}};
+      d.querySelector('form').onsubmit=async event=>{event.preventDefault();const button=d.querySelector('#role-save');button.disabled=true;try{await send('/api/admin/roles'+(row?'/'+row.id:''),row?'PUT':'POST',builtIn?{description:d.querySelector('[name="description"]').value,rights:editor.read()}:{name:d.querySelector('[name="name"]').value,description:d.querySelector('[name="description"]').value,status:row?d.querySelector('[name="status"]').value:'active',rights:editor.read()},row);d.close();await load(true);}catch(error){d.querySelector('.live-dialog-notice').textContent=error.message;}finally{if(button.isConnected)button.disabled=false;}};
     }catch(error){notice(error.message,true);}
   }
   async function openRoleMembers(role){
     try{
       const [latestRole,usersResponse]=await Promise.all([request('/api/admin/roles/'+role.id),request('/api/admin/users?status=all&limit=200')]);
       role=latestRole.data;
-      const eligible=usersResponse.data.filter(account=>account.role==='user'&&account.status==='approved'&&!account.is_deleted&&account.permission_role_id!==role.id);
-      const already=usersResponse.data.filter(account=>account.role==='user'&&account.status==='approved'&&!account.is_deleted&&account.permission_role_id===role.id);
-      const choices=eligible.length?eligible.map(account=>`<label class="role-member-choice"><input type="checkbox" name="role-member" value="${h(account.id)}"><span><strong>${h(account.name)}</strong><small>${h(account.username||account.email)}</small></span></label>`).join(''):'<p class="live-empty-copy">Every eligible User is already assigned to this role.</p>';
-      const body=`<p class="live-role-note">Select approved User accounts to add to <strong>${h(role.name)}</strong>. Existing role members are not changed.</p>${already.length?`<p class="role-member-summary">${already.length} current member${already.length===1?'':'s'}</p>`:''}<div class="role-member-list">${choices}</div>`;
+      const assignable=account=>roleFitsAccount(role,account)&&(account.role!=='admin'||user.role==='superadmin')&&account.status==='approved'&&!account.is_deleted;
+      const eligible=usersResponse.data.filter(account=>assignable(account)&&account.permission_role_id!==role.id);
+      const already=usersResponse.data.filter(account=>assignable(account)&&account.permission_role_id===role.id);
+      const choices=eligible.length?eligible.map(account=>`<label class="role-member-choice"><input type="checkbox" name="role-member" value="${h(account.id)}"><span><strong>${h(account.name)}</strong><small>${h(account.username||account.email)}</small></span></label>`).join(''):'<p class="live-empty-copy">Every eligible account is already assigned to this role.</p>';
+      const body=`<p class="live-role-note">Select approved ${role.built_in==='admin'?'Admin':'User'} accounts to add to <strong>${h(role.name)}</strong>. Existing role members are not changed.</p>${already.length?`<p class="role-member-summary">${already.length} current member${already.length===1?'':'s'}</p>`:''}<div class="role-member-list">${choices}</div>`;
       const footer=eligible.length&&role.status==='active'?'<button type="submit" class="module-primary" id="role-members-save">Add selected users</button>':'';
       const d=showDialog('Add users - '+role.name,body,footer);
       if(role.status!=='active'){d.querySelector('.live-dialog-notice').textContent='Activate this role before assigning users.';return;}
@@ -1074,7 +1088,7 @@
       d.querySelector('form').onsubmit=async event=>{
         event.preventDefault();
         const selected=[...d.querySelectorAll('[name="role-member"]:checked')].map(box=>eligible.find(account=>account.id===box.value)).filter(Boolean);
-        if(!selected.length){d.querySelector('.live-dialog-notice').textContent='Select at least one User.';return;}
+        if(!selected.length){d.querySelector('.live-dialog-notice').textContent='Select at least one account.';return;}
         const button=d.querySelector('#role-members-save');button.disabled=true;
         let completed=0;
         try{
@@ -1086,9 +1100,9 @@
   }
   async function openRights(row) {
     try{
-      const [catalogueResponse,rightsResponse,rolesResponse]=await Promise.all([request('/api/admin/rights-catalogue'),request('/api/admin/users/'+row.id+'/rights'),row.role==='user'?request('/api/admin/roles?status=all&limit=200'):Promise.resolve({data:[]})]);
-      const fixed=row.role==='superadmin',presetOrder={Admin:0,Staff:1,User:2},profiles=[...rolesResponse.data].sort((a,b)=>(presetOrder[a.name]??10)-(presetOrder[b.name]??10)||a.name.localeCompare(b.name));
-      const selector=row.role==='user'?`<label class="field"><span>Permission role</span><select id="live-permission-role"><option value="">Custom permissions</option>${profiles.filter(p=>p.status==='active'||p.id===row.permission_role_id).map(p=>`<option value="${p.id}" ${p.id===row.permission_role_id?'selected':''} ${p.status==='inactive'?'disabled':''}>${h(p.name)}${p.status==='inactive'?' (inactive)':''}</option>`).join('')}</select></label><p class="live-role-note">Choose a named role to follow its permissions, or Custom permissions to edit this user only.</p>`:fixed?'<p class="live-role-note">Superadmin has fixed full access. Its permissions cannot be customized.</p>':'';
+      const [catalogueResponse,rightsResponse,rolesResponse]=await Promise.all([request('/api/admin/rights-catalogue'),request('/api/admin/users/'+row.id+'/rights'),['admin','user'].includes(row.role)?request('/api/admin/roles?status=all&limit=200'):Promise.resolve({data:[]})]);
+      const fixed=row.role==='superadmin',profiles=rolesResponse.data.filter(p=>roleFitsAccount(p,row)).sort(roleOrder);
+      const selector=['admin','user'].includes(row.role)?`<label class="field"><span>Permission role</span><select id="live-permission-role"><option value="">Custom permissions</option>${profiles.filter(p=>p.status==='active'||p.id===row.permission_role_id).map(p=>`<option value="${p.id}" ${p.id===row.permission_role_id?'selected':''} ${p.status==='inactive'?'disabled':''}>${h(p.name)}${p.status==='inactive'?' (inactive)':''}</option>`).join('')}</select></label><p class="live-role-note">Choose a named role to follow its permissions, or Custom permissions to edit this user only.</p>`:fixed?'<p class="live-role-note">Superadmin has fixed full access. Its permissions cannot be customized.</p>':'';
       const rights=fixed?Object.fromEntries(Object.keys(catalogueResponse.data).map(k=>[k,true])):rightsResponse.data;
       const d=showDialog('Assign rights - '+row.name,selector+permissionsMarkup(catalogueResponse.data,rights),fixed?'':'<button type="submit" class="module-primary" id="rights-save">Save rights</button>');
       const editor=bindPermissions(d),select=d.querySelector('#live-permission-role');
@@ -1227,11 +1241,12 @@
         location.replace(user.workspace==="staff"?"/UI-UX/staff/modules/dashboard/index.html":"/UI-UX/user/dashboard/index.html");
         return;
       }
-      if(!boot.view&&!['user-management','administrator'].includes(module))throw new Error('This module is not permitted for your assigned role.');
+      const denied=!boot.view&&!['user-management','administrator'].includes(module);
       if(boot.records)initialRecords={view:boot.view,result:boot.records};
       if(lifecycle.signal.aborted)return;
       await shell();
       if(lifecycle.signal.aborted)return;
+      if(denied){showNoPermission();return;}
       await load(true);
       const route=new URLSearchParams(location.search);
       if(route.has("record") && cfg()) {

@@ -116,7 +116,7 @@ test("Login activities, system roles and full-name audit actors", async (t) => {
       const r = await req("root", "/api/admin/system-roles");
       assert.deepEqual(
         r.body.data.map((x) => x.system_role),
-        ["superadmin", "admin", "user"],
+        ["superadmin"],
       );
       assert.equal(r.body.data[0].members, 1);
       assert.equal(r.body.data[0].members_details[0].username, "root");
@@ -138,7 +138,7 @@ test("Login activities, system roles and full-name audit actors", async (t) => {
         (await req("manager", "/api/admin/system-roles")).body.data.map(
           (r) => r.system_role,
         ),
-        ["user"],
+        [],
       );
     },
   );
